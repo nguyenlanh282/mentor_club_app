@@ -132,11 +132,13 @@ function scheduleMs(cell){ if(cell==null)return null; if(typeof cell==='number')
 (async()=>{
   const tk=await larkToken();
   // Tự dò cột link tới bảng fanpage (type 18 single-link / 21 duplex-link) nếu tên khác "Page".
+  let LINKPOST_TYPE=15;  // kiểu cột "Link bài đăng": 15=Url (1 link) · 1=Text (nhiều link)
   try {
     const flds=await listFields(tk, CFG.TABLE_ID);
     const lf=flds.find(f=>f.name===F.link) || flds.find(f=>f.type===18||f.type===21) || flds.find(f=>/page/i.test(f.name));
     if(lf) F.link=lf.name;
-    log(`Cột link Page = "${F.link}". Cổng kích hoạt cột "${F.trigger}" = ${CFG.TRIGGER_GATE?'BẬT':'TẮT'}.`);
+    const lp=flds.find(f=>f.name===F.linkPost); if(lp) LINKPOST_TYPE=lp.type;
+    log(`Cột link Page = "${F.link}". Cột "Link bài đăng" kiểu ${LINKPOST_TYPE===1?'Text (nhiều link)':LINKPOST_TYPE===15?'Url (1 link)':LINKPOST_TYPE}. Cổng "${F.trigger}" = ${CFG.TRIGGER_GATE?'BẬT':'TẮT'}.`);
   } catch(e){ log('! không đọc được fields, dùng mặc định "'+F.link+'": '+String(e.message||e)); }
   // map record_id (bảng fanpage) -> {fbId, token, name}
   const pageRecs=await listAll(tk, CFG.PAGES_TABLE);
@@ -173,7 +175,7 @@ function scheduleMs(cell){ if(cell==null)return null; if(typeof cell==='number')
       for(let i=0;i<files.length;i++){ const f=files[i]; const p=path.join(os.tmpdir(),`reel_${recId}_${i}_${(f.name||'m').replace(/[^\w.]/g,'')}`);
         await downloadMedia(tk,f.file_token,p); f.path=p; tmp.push(p); }
       const commentText=plain(row.fields[F.comment]).trim();
-      const links=[], logs=[]; let okN=0, failN=0;
+      const links=[], linkLines=[], logs=[]; let okN=0, failN=0;
       // Đăng lần lượt lên TỪNG Page đã chọn.
       for(const prid of pageRecIds){
         const pg=pageMap.get(prid);
@@ -184,13 +186,15 @@ function scheduleMs(cell){ if(cell==null)return null; if(typeof cell==='number')
           let cmtNote='';
           if(commentText){ try{ await postComment(pg.fbId,pg.token,res.objectId,commentText); cmtNote=' +cmt'; }
             catch(e){ cmtNote=' (cmt lỗi)'; log(`     ! comment lỗi (${pg.name}): ${String(e.message||e).slice(0,100)}`); } }
-          links.push(res.permalink); logs.push(`${pg.name}: OK ${res.permalink}${cmtNote}`); okN++;
+          links.push(res.permalink); linkLines.push(`${pg.name}: ${res.permalink}`); logs.push(`${pg.name}: OK${cmtNote}`); okN++;
           log(`     ✔ ${pg.name}: ${res.permalink}`);
         }catch(e){ const msg=String(e.message||e).slice(0,200); failN++; logs.push(`${pg.name}: LỖI ${msg}`); log(`     ✖ ${pg.name}: ${msg}`); }
       }
       // "Thành công" nếu có ≥1 Page lên (tránh đăng lại Page đã OK khi bấm lại); log liệt kê từng Page.
       const fields={ [F.status]: okN>0?DONE:FAIL, [F.log]:`${now()} - ${okN}/${pageRecIds.length} Page OK | ${logs.join(' || ')}`.slice(0,900) };
-      if(links[0]) fields[F.linkPost]={link:links[0], text: okN>1?`Xem (${okN} Page)`:'Xem bài'};
+      // Ghi link TẤT CẢ Page đã đăng vào "Link bài đăng": Text → mỗi Page 1 dòng; Url → chỉ được 1 link.
+      if(links.length){ fields[F.linkPost] = LINKPOST_TYPE===1 ? linkLines.join('\n')
+                                                              : {link:links[0], text: okN>1?`Xem (${okN} Page)`:'Xem bài'}; }
       await updateRow(tk,recId,fields);
       if(okN>0) ok++; else err++;
     }catch(e){ const msg=String(e.message||e).slice(0,300); log(`     ✖ LỖI: ${msg}`);
