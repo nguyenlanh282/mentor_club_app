@@ -1,0 +1,12 @@
+# Bảo mật — KHÔNG BAO GIỜ commit khóa/token
+*.local.json
+_app.json
+config.local.json
+.env
+.env.*
+
+# macOS / rác hệ thống
+.DS_Store
+*.tmp
+*.swp
+Thumbs.db

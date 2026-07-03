@@ -1,0 +1,8 @@
+{
+  "_note": "COPY file này thành post-multi-reel.local.json rồi điền giá trị CỦA BẠN. File thật đã bị .gitignore chặn, KHÔNG commit.",
+  "LARK_APP_ID": "cli_xxxxxxxxxxxxxxxx",
+  "LARK_APP_SECRET": "",
+  "LARK_APP_TOKEN": "app_token_cua_Base",
+  "LARK_TABLE_ID": "tbl_bang_Dang_Reel",
+  "PAGES_TABLE_ID": "tbl_bang_fanpage"
+}
