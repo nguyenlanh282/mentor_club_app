@@ -31,6 +31,8 @@ const CFG = {
   TRIGGER_GATE: process.env.TRIGGER_GATE !== 'false',
   // Nút bấm 1 dòng: nếu RECORD_ID có giá trị → CHỈ đăng đúng record đó, bỏ qua cổng tick + lịch (bấm nút = đồng ý đăng ngay).
   RECORD_ID: (process.env.RECORD_ID || '').trim(),
+  // LỊCH TỰ ĐỘNG (cron): chỉ đăng dòng ĐÃ tới giờ "Lịch đăng bài" hoặc đã tick "Đăng"; dòng không hẹn & không tick → bỏ qua (tránh đăng nhầm nháp).
+  SCHEDULE_MODE: process.env.SCHEDULE_MODE === 'true',
 };
 const GRAPH = `https://graph.facebook.com/${CFG.GRAPH_VERSION}`;
 const DRY = process.argv.includes('--dry-run');
@@ -154,12 +156,17 @@ function scheduleMs(cell){ if(cell==null)return null; if(typeof cell==='number')
     const recId=row.record_id;
     if(CFG.RECORD_ID && recId!==CFG.RECORD_ID) { skip++; continue; }                   // nút 1 dòng: chỉ đăng đúng record được bấm
     if(plain(row.fields[F.status])===DONE) { skip++; continue; }                      // đã đăng thành công
-    if(!CFG.RECORD_ID && CFG.TRIGGER_GATE && !isTriggered(row.fields[F.trigger])) { skip++; continue; } // chưa bật cột "Đăng" (tick ô đánh dấu)
     const pageRecIds=linkRecIds(row.fields[F.link]);                                    // TẤT CẢ Page đã chọn trong ô "Page"
     const atts=Array.isArray(row.fields[F.media])?row.fields[F.media]:[];
     if(pageRecIds.length===0 || atts.length===0) { skip++; continue; }                  // chưa chọn Page / chưa có file
 
-    if(!CFG.RECORD_ID && CFG.RESPECT_SCHEDULE){ const s=scheduleMs(row.fields[F.schedule]); if(s&&s>nowMs){ log(`  [CHỜ GIỜ] ${recId}: hẹn ${new Date(s).toISOString().slice(0,16)}`); wait++; continue; } }
+    if(!CFG.RECORD_ID){
+      const s=scheduleMs(row.fields[F.schedule]);
+      if(CFG.RESPECT_SCHEDULE && s!=null && s>nowMs){ log(`  [CHỜ GIỜ] ${recId}: hẹn ${new Date(s).toISOString().slice(0,16)}`); wait++; continue; } // hẹn tương lai → chờ
+      const ticked=isTriggered(row.fields[F.trigger]);
+      if(CFG.SCHEDULE_MODE){ if(!(s!=null || ticked)){ skip++; continue; } }             // lịch tự động: cần có hẹn giờ (đã tới) hoặc đã tick
+      else if(CFG.TRIGGER_GATE && !ticked){ skip++; continue; }                          // chạy tay: cần tick cột "Đăng"
+    }
 
     const caption=plain(row.fields[F.caption]);
     const loai=plain(row.fields[F.type]);

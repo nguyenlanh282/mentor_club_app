@@ -1,8 +1,9 @@
 name: Đăng bài Facebook (Reel/Ảnh) từ Lark Base
 
-# Chạy THEO YÊU CẦU: vào tab Actions → chọn workflow này → "Run workflow",
-# hoặc gọi qua API dispatch từ nút bấm trong Lark Base.
+# Chạy TỰ ĐỘNG theo lịch (cron 30') để đăng bài tới giờ hẹn, VÀ chạy tay/qua API dispatch.
 on:
+  schedule:
+    - cron: '*/30 * * * *'   # mỗi 30 phút quét bảng, đăng dòng đã tới "Lịch đăng bài" (repo private: hợp mức phút miễn phí)
   workflow_dispatch:
     inputs:
       dry_run:
@@ -44,6 +45,7 @@ jobs:
           PAGES_TABLE_ID: ${{ secrets.PAGES_TABLE_ID }}
           TRIGGER_GATE: ${{ inputs.post_all && 'false' || 'true' }}
           RECORD_ID: ${{ inputs.record_id }}
+          SCHEDULE_MODE: ${{ github.event_name == 'schedule' }}
         run: |
           ARGS=""
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="--dry-run"; fi
