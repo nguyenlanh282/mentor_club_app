@@ -153,11 +153,9 @@ function scheduleMs(cell){ if(cell==null)return null; if(typeof cell==='number')
     if(CFG.RECORD_ID && recId!==CFG.RECORD_ID) { skip++; continue; }                   // nút 1 dòng: chỉ đăng đúng record được bấm
     if(plain(row.fields[F.status])===DONE) { skip++; continue; }                      // đã đăng thành công
     if(!CFG.RECORD_ID && CFG.TRIGGER_GATE && !isTriggered(row.fields[F.trigger])) { skip++; continue; } // chưa bật cột "Đăng" (tick ô đánh dấu)
-    const pageRecId=linkRecIds(row.fields[F.link])[0];
+    const pageRecIds=linkRecIds(row.fields[F.link]);                                    // TẤT CẢ Page đã chọn trong ô "Page"
     const atts=Array.isArray(row.fields[F.media])?row.fields[F.media]:[];
-    if(!pageRecId || atts.length===0) { skip++; continue; }                            // chưa chọn Page / chưa có file
-    const pg=pageMap.get(pageRecId);
-    if(!pg||!pg.fbId||!pg.token){ log(`  [LỖI] ${recId}: Page link không có ID/token trong bảng fanpage`); if(!DRY)await updateRow(tk,recId,{[F.status]:FAIL,[F.log]:`${now()} - Page thiếu ID/token`}); err++; continue; }
+    if(pageRecIds.length===0 || atts.length===0) { skip++; continue; }                  // chưa chọn Page / chưa có file
 
     if(!CFG.RECORD_ID && CFG.RESPECT_SCHEDULE){ const s=scheduleMs(row.fields[F.schedule]); if(s&&s>nowMs){ log(`  [CHỜ GIỜ] ${recId}: hẹn ${new Date(s).toISOString().slice(0,16)}`); wait++; continue; } }
 
@@ -166,21 +164,35 @@ function scheduleMs(cell){ if(cell==null)return null; if(typeof cell==='number')
     // Loại quyết định luồng; nếu trống thì suy từ đuôi file.
     let kind = /video/i.test(loai) ? 'video' : /ảnh|hình|image|photo/i.test(loai) ? 'image' : (atts.some(isVid)?'video':'image');
     const files = kind==='video' ? [ atts.find(isVid)||atts[0] ] : atts.filter(a=>isImg(a)||!isVid(a));
-    log(`  >> ${recId} | ${pg.name} | ${kind==='video'?'REEL':'ẢNH'} | ${files.length} file | "${caption.slice(0,40).replace(/\n/g,' ')}"`);
-    if(DRY){ const c=plain(row.fields[F.comment]).trim(); if(c)log(`     [DRY] comment: ${c.slice(0,60)}`); continue; }
+    log(`  >> ${recId} | ${pageRecIds.length} Page | ${kind==='video'?'REEL':'ẢNH'} | ${files.length} file | "${caption.slice(0,40).replace(/\n/g,' ')}"`);
+    if(DRY){ pageRecIds.forEach(prid=>{const p=pageMap.get(prid); log(`     [DRY] → ${p?p.name:prid}`);}); const c=plain(row.fields[F.comment]).trim(); if(c)log(`     [DRY] comment: ${c.slice(0,60)}`); continue; }
 
     const tmp=[];
     try{
+      // Tải media 1 lần, dùng chung cho MỌI Page.
       for(let i=0;i<files.length;i++){ const f=files[i]; const p=path.join(os.tmpdir(),`reel_${recId}_${i}_${(f.name||'m').replace(/[^\w.]/g,'')}`);
         await downloadMedia(tk,f.file_token,p); f.path=p; tmp.push(p); }
-      const res = kind==='video' ? await postReel(pg.fbId,pg.token,files[0],caption)
-                                  : await postPhotos(pg.fbId,pg.token,files,caption);
-      // Auto comment #1 (link ebook) — không làm hỏng bài nếu lỗi.
-      let cmtNote=''; const commentText=plain(row.fields[F.comment]).trim();
-      if(commentText){ try{ await postComment(pg.fbId,pg.token,res.objectId,commentText); cmtNote=' +cmt'; }
-        catch(e){ cmtNote=' (cmt lỗi)'; log(`     ! comment lỗi: ${String(e.message||e).slice(0,120)}`); } }
-      await updateRow(tk,recId,{ [F.status]:DONE, [F.linkPost]:{link:res.permalink,text:'Xem bài'}, [F.log]:`${now()} - OK - ${res.objectId}${cmtNote}` });
-      log(`     ✔ ĐÃ ĐĂNG: ${res.permalink}`); ok++;
+      const commentText=plain(row.fields[F.comment]).trim();
+      const links=[], logs=[]; let okN=0, failN=0;
+      // Đăng lần lượt lên TỪNG Page đã chọn.
+      for(const prid of pageRecIds){
+        const pg=pageMap.get(prid);
+        if(!pg||!pg.fbId||!pg.token){ failN++; logs.push(`${prid}: thiếu ID/token`); log(`     ✖ ${prid}: Page thiếu ID/token trong bảng fanpage`); continue; }
+        try{
+          const res = kind==='video' ? await postReel(pg.fbId,pg.token,files[0],caption)
+                                      : await postPhotos(pg.fbId,pg.token,files,caption);
+          let cmtNote='';
+          if(commentText){ try{ await postComment(pg.fbId,pg.token,res.objectId,commentText); cmtNote=' +cmt'; }
+            catch(e){ cmtNote=' (cmt lỗi)'; log(`     ! comment lỗi (${pg.name}): ${String(e.message||e).slice(0,100)}`); } }
+          links.push(res.permalink); logs.push(`${pg.name}: OK ${res.permalink}${cmtNote}`); okN++;
+          log(`     ✔ ${pg.name}: ${res.permalink}`);
+        }catch(e){ const msg=String(e.message||e).slice(0,200); failN++; logs.push(`${pg.name}: LỖI ${msg}`); log(`     ✖ ${pg.name}: ${msg}`); }
+      }
+      // "Thành công" nếu có ≥1 Page lên (tránh đăng lại Page đã OK khi bấm lại); log liệt kê từng Page.
+      const fields={ [F.status]: okN>0?DONE:FAIL, [F.log]:`${now()} - ${okN}/${pageRecIds.length} Page OK | ${logs.join(' || ')}`.slice(0,900) };
+      if(links[0]) fields[F.linkPost]={link:links[0], text: okN>1?`Xem (${okN} Page)`:'Xem bài'};
+      await updateRow(tk,recId,fields);
+      if(okN>0) ok++; else err++;
     }catch(e){ const msg=String(e.message||e).slice(0,300); log(`     ✖ LỖI: ${msg}`);
       try{await updateRow(tk,recId,{[F.status]:FAIL,[F.log]:`${now()} - LỖI - ${msg}`});}catch{} err++;
     }finally{ tmp.forEach(p=>{try{fs.unlinkSync(p)}catch{}}); }
