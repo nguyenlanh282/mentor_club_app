@@ -1,0 +1,8 @@
+{
+  "_note": "COPY thành fetch-pages.local.json rồi điền KEY CỦA BẠN. File thật đã bị .gitignore chặn, KHÔNG commit. Dùng để chạy: node fetch-pages-to-lark.js --update",
+  "LARK_APP_ID": "cli_xxxxxxxxxxxxxxxx",
+  "LARK_APP_SECRET": "",
+  "LARK_APP_TOKEN": "app_token_cua_Base",
+  "LARK_TABLE_ID": "tbl_bang_Fanpage",
+  "FB_USER_TOKEN": ""
+}

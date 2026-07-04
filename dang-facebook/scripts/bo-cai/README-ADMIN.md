@@ -19,7 +19,7 @@ ban-chuyen-giao/
 ```
 
 ## 1. Điền App Lark dùng chung — `_app.json`
-Hệ thống cần 1 App Lark để `lark-cli` thao tác Base. Dùng chung 1 app cho cả nhóm (vd app **"ADS -> LARK"**, App ID `cli_a736cbaaa63bd010`).
+Hệ thống cần 1 App Lark để `lark-cli` thao tác Base. Dùng chung 1 app cho cả nhóm (vd app **"ADS -> LARK"**, App ID `cli_APP-ID-CUA-BAN`).
 - Mở `_app.json`, điền **`APP_SECRET`** (lấy ở Lark Developer Console → app → Credentials).
 - `BRAND` để `lark` (vì dùng larksuite.com).
 
@@ -29,7 +29,7 @@ Hệ thống cần 1 App Lark để `lark-cli` thao tác Base. Dùng chung 1 app
 
 ## 2. Tạo Base mẫu để học viên nhân bản
 Đã có sẵn 1 Base mẫu chuẩn (đủ field TT Reel / Ảnh-video / Nội dung / Hastag / Lịch đăng / Link Reel / Log / Loại):
-- **Link Base mẫu:** https://studiosuccess.sg.larksuite.com/base/Ahs4bAY2ZaUc6jscpykl4Vynglb
+- **Link Base mẫu:** https://<workspace-cua-ban>.larksuite.com/base/<BASE-TOKEN-CUA-BAN>
 - Chia sẻ link này cho học viên + bật quyền cho họ **Tạo bản sao (Make a copy)**.
 - (Nếu muốn mỗi khoá 1 mẫu riêng, cứ nhân bản Base này rồi gửi link bản mới.)
 

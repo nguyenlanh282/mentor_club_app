@@ -61,8 +61,8 @@ node scripts/post-reels-api.js --dry-run  # chỉ liệt kê
 **B. `scripts/bo-cai/post-reels.js` (bản gốc, dùng lark-cli).** Dành cho bản chuyển giao học viên tự cài: cần `npm i -g @larksuite/cli` + `lark-cli auth login` + `config.local.json`. Chạy `node post-reels.js` hoặc bấm `DANG-NGAY.bat`.
 
 ## Quy trình ADMIN — chuẩn bị bản chuyển giao (1 lần)
-1. **Điền `scripts/bo-cai/_app.json`:** `APP_SECRET` của app Lark dùng chung (vd "ADS → LARK", App ID `cli_a736cbaaa63bd010`). App cần scope base + drive; học viên phải cùng workspace Lark (hoặc app cài cho tổ chức họ). ⚠️ File chứa secret → gửi qua kênh riêng tư, KHÔNG public.
-2. **Base mẫu:** có sẵn đủ field; chia sẻ link + bật quyền *Make a copy* cho học viên. (Link mẫu cũ: `https://studiosuccess.sg.larksuite.com/base/Ahs4bAY2ZaUc6jscpykl4Vynglb`.)
+1. **Điền `scripts/bo-cai/_app.json`:** `APP_SECRET` của app Lark dùng chung (vd "ADS → LARK", App ID `cli_APP-ID-CUA-BAN`). App cần scope base + drive; học viên phải cùng workspace Lark (hoặc app cài cho tổ chức họ). ⚠️ File chứa secret → gửi qua kênh riêng tư, KHÔNG public.
+2. **Base mẫu:** có sẵn đủ field; chia sẻ link + bật quyền *Make a copy* cho học viên. (Link mẫu cũ: `https://<workspace-cua-ban>.larksuite.com/base/<BASE-TOKEN-CUA-BAN>`.)
 3. **Lấy FB token cho TỪNG học viên:** Page Access Token dài hạn, scope `pages_manage_posts`, `pages_read_engagement`, `pages_show_list`. Gửi 2 dòng: **FB PAGE ID** + **FB PAGE TOKEN**. Token ~60 ngày phải cấp lại.
 4. **Nén & gửi:** zip thư mục `bo-cai` (đã điền `_app.json`) + kèm: link Base mẫu, FB PAGE ID, FB PAGE TOKEN. Bảo học viên đọc `HUONG-DAN-HOC-VIEN.md`. KHÔNG gửi `README-ADMIN.md`.
 
