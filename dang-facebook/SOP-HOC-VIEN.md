@@ -114,6 +114,16 @@ Hệ thống cần 1 App Lark để đọc/ghi Base và tải file.
 
 ## PHẦN 5 — GitHub (repo + nạp 5 Secrets)
 
+> ⚡ **Cách nhanh (tự động) — khuyến nghị nếu có máy cài `gh` CLI + Node 18+.**
+> Thay cho việc bấm tay 3 mục dưới, chạy 1 lệnh để tự tạo repo + nạp cả 5 Secrets:
+> ```bash
+> export GH_TOKEN="<PAT-cua-ban>"          # token GitHub scope repo + workflow
+> export NEW_REPO="reel-facebook" VISIBILITY="private"
+> export LARK_APP_ID=... LARK_APP_SECRET=... LARK_APP_TOKEN=... LARK_TABLE_ID=... PAGES_TABLE_ID=...
+> node dang-facebook/scripts/cai-dat-github.mjs all
+> ```
+> Script tạo repo mới **từ template** này, nạp 5 secret (giá trị truyền qua STDIN, không lộ) và chạy thử dry-run. Nếu thích làm tay, theo 3 bước bên dưới.
+
 1. **Tạo repo của bạn** từ bộ code này: bấm **Use this template** (hoặc *Fork* / *Import repository*). Repo có thể để **Private**.
 2. Vào tab **Actions** → nếu hỏi, bấm **"I understand… enable"** để bật workflow.
 3. Vào **Settings → Secrets and variables → Actions → New repository secret**, tạo lần lượt **5 secret** (dán đúng KEY của bạn):
