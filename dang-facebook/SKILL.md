@@ -1,110 +1,80 @@
 ---
-name: dang-reel-facebook
-description: Hệ thống đăng video Reel từ Lark Base lên Facebook Page, chạy THEO YÊU CẦU — chỉ thực thi khi skill được gọi, KHÔNG quét nền/định kỳ. Upload Reels qua Graph API phân mảnh (không qua Anycross nên không dính trần dung lượng). Dùng khi cần đăng các Reel đang ở trạng thái "Chờ đăng", triển khai/đóng gói bộ cho học viên/khách, sửa logic đăng, hoặc xử lý lỗi token Facebook.
+name: dang-bai-facebook
+description: Hệ thống đăng bài Facebook (Reel + ảnh) từ Lark Base lên Facebook Page qua GitHub Actions. Chạy TỰ ĐỘNG theo lịch (cron 30') hoặc bấm tay. Mỗi dòng tự chọn Page qua cột link, dùng đúng token của Page đó (lấy từ bảng Fanpage). Dùng khi cần dựng/bàn giao hệ thống đăng bài tự động cho học viên/khách, sửa logic đăng, hoặc xử lý lỗi token Facebook.
 ---
 
-# Đăng Reel Facebook tự động (Lark Base → FB Page)
+# Đăng bài Facebook tự động (Lark Base → GitHub Actions → FB Page)
 
-Người dùng đính video + viết caption vào Lark Base và đặt `TT Reel = Chờ đăng`. **Khi skill được gọi**, hệ thống chạy `post-reels.js` MỘT lần: quét các dòng "Chờ đăng", đăng lên Facebook Page, rồi ghi link/log ngược về Base. **Không có tiến trình quét nền/định kỳ.**
+Người dùng nhập bài vào **Lark Base** (chọn Page + đính video/ảnh + nội dung + lịch đăng). **GitHub Actions**
+tự chạy `post-multi-reel-api.js`: quét bảng, tải media từ Base, đăng lên **tất cả Page** đã chọn qua Facebook
+Graph API, rồi ghi **Link bài + Trạng thái + Log** ngược về Base. Không cần máy bật liên tục, không cần lark-cli.
 
-## Khi nào dùng skill này
-- Đóng gói **bản chuyển giao** cho học viên/khách mới (admin).
-- Cài đặt trên máy học viên (theo wizard).
-- Sửa/mở rộng `post-reels.js`, đổi field, đổi lịch quét.
-- Xử lý sự cố: token FB hết hạn, video sai định dạng, không đăng đúng giờ.
+> ⚠️ Bộ code này đã được **gỡ sạch mọi ID/Secret/token** của người đóng gói. **Mỗi học viên tự nhập dữ liệu
+> của chính mình** (khóa Lark, token Facebook, ID bảng). Không có giá trị mặc định ngầm nào.
 
 ## Kiến trúc & luồng
 ```
-Lark Base (TT Reel = "Chờ đăng")
-   │  GỌI SKILL → chạy post-reels.js MỘT lần (on-demand, KHÔNG quét nền)
+Lark Base (bảng Đăng Reel + bảng Fanpage)
+   │   GitHub Actions: cron mỗi 30' HOẶC Run workflow (bấm tay / API dispatch)
    ▼
-post-reels.js:
-   1. lark-cli +record-list  → tìm dòng "Chờ đăng" (tôn trọng "Lịch đăng" nếu có)
-   2. +record-download-attachment → tải video về %TEMP%\reel-work
-   3. Facebook Graph API video_reels 3 pha: start → upload binary → finish/PUBLISHED
-   4. poll status → lấy permalink
-   5. +record-batch-update → TT Reel="Đã đăng" + Link Reel + Log (hoặc "Lỗi" + lý do)
+post-multi-reel-api.js:
+   1. Lark Open API (tenant token) → đọc dòng cần đăng (cổng "Đăng" / "Lịch đăng bài")
+   2. drive/medias → tải video/ảnh từ Base về máy runner
+   3. Với mỗi Page (link sang bảng Fanpage) → dùng đúng ID + access_token của Page
+   4. Facebook Graph API: Reel (video_reels 3 pha) hoặc ảnh (photos/feed) + auto-comment #1
+   5. Ghi ngược Base: Trạng thái = Thành công/Thất bại + Link bài đăng + Log
 ```
-**Điểm mấu chốt:** upload thẳng Graph API (không qua Anycross) → **không dính trần dung lượng video**.
+**Điểm mấu chốt:** upload thẳng Graph API (không qua trung gian) → không dính trần dung lượng; đăng **nhiều Page** cùng lúc.
 
-## Schema Base mẫu (field — đúng tên, phân biệt hoa thường & dấu)
-| Field | Kiểu | Vai trò |
-|---|---|---|
-| `TT Reel` | Single Select | Trạng thái: **Chờ đăng** (kích hoạt) / Đã đăng / Lỗi |
-| `Ảnh/video` | Attachment | Video MP4 dọc 9:16, 3–90s |
-| `Nội dung` | Text | Caption |
-| `Hastag` | Text | Hashtag (ghép xuống dưới caption) |
-| `Lịch đăng` | DateTime | Hẹn giờ (trống = đăng ngay) |
-| `Link Reel` | Text/URL | Máy ghi link bài sau khi đăng |
-| `Log đăng Reel` | Text | Máy ghi OK / lỗi / RETRY n/3 |
+## Chạy hằng ngày (sau khi đã cài)
+- Thêm dòng trong bảng **Đăng Reel**: chọn `Page` + đính `Ảnh/video` + `Nội dung` + đặt `Lịch đăng bài`.
+- Cron quét **mỗi 30 phút** → tới giờ hẹn tự đăng. Muốn đăng ngay không chờ lịch → tick ô `Đăng`.
+- Bấm tay: tab **Actions** → *"Đăng bài Facebook…"* → **Run workflow** (có tuỳ chọn `dry_run` để soi log trước).
 
-Tên field được khai trong `post-reels.js` (object `F`). Đổi tên cột trên Base ⇒ phải sửa `F` cho khớp.
+## Cài đặt / bàn giao cho học viên (3 bước — mỗi người 1 bộ khóa RIÊNG)
+Chi tiết từng nút bấm ở [SOP-HOC-VIEN.md](../SOP-HOC-VIEN.md). Tóm tắt:
 
-## Logic quan trọng (post-reels.js)
-- **Trigger:** chỉ xử lý dòng `TT Reel = CFG.TRIGGER` ("Chờ đăng").
-- **RESPECT_SCHEDULE:** nếu `Lịch đăng` ở tương lai → bỏ qua (KHÔNG đăng); trống hoặc đã tới giờ → đăng ngay. ⚠️ Ở chế độ on-demand không có quét nền, nên dòng hẹn giờ tương lai **chỉ được đăng khi bạn gọi skill lại vào/sau thời điểm đó**. Muốn đăng tất cả "Chờ đăng" ngay bất kể lịch → đặt `RESPECT_SCHEDULE: false` trong `config.local.json`.
-- **Phân loại lỗi:** `isPermanent()` (token/permission/định dạng/độ dài...) → set "Lỗi" ngay; lỗi tạm thời (mạng/5xx) → giữ "Chờ đăng", retry tới `MAX_RETRY` (mặc định 3), đếm qua "RETRY n/3" trong Log → lần gọi skill sau tự thử lại.
-- **Lock:** `%TEMP%\reel-work\post-reels.lock` chống chạy chồng khi video lớn còn đang upload (lock <30' coi như đang chạy).
-- **WORK dir = %TEMP%\reel-work** (không đặt trong thư mục có dấu cách/tiếng Việt vì lark-cli @file/--output lỗi).
-- `--dry-run`: in ra, không đăng, không ghi Base.
+1. **Repo + token GitHub:** tạo repo riêng từ template này (**Use this template**), có PAT GitHub scope `repo`+`workflow`.
+2. **Biến môi trường → GitHub Secrets:** nạp 5 khóa Lark (bảng dưới). Làm tay trong *Settings → Secrets*, hoặc
+   tự động 1 lệnh: `node dang-facebook/scripts/cai-dat-github.mjs all` (cần `gh` CLI + Node 18+).
+3. **ID + token Facebook:** nạp **Page ID + Page access_token** vào **bảng Fanpage** trên Lark Base
+   (thủ công, hoặc chạy `node fetch-pages-to-lark.js --update` với `FB_USER_TOKEN` của bạn).
 
-## Cách thực thi (on-demand — không quét nền)
-Có 2 runner; chọn theo môi trường:
+### 5 GitHub Secrets (mỗi học viên tự điền của mình)
+| Secret | Là gì |
+|---|---|
+| `LARK_APP_ID` | App ID app Lark của bạn |
+| `LARK_APP_SECRET` | App Secret app Lark 🔒 |
+| `LARK_APP_TOKEN` | Token của Base (đoạn sau `/base/` trên URL) |
+| `LARK_TABLE_ID` | ID bảng **Đăng Reel** (`table=` trên URL) |
+| `PAGES_TABLE_ID` | ID bảng **Fanpage** (`table=` trên URL) |
 
-**A. `scripts/post-reels-api.js` (KHUYẾN NGHỊ — KHÔNG cần lark-cli).** Dùng Lark Open API (app token) + FB Graph API, chỉ cần Node 18+. CONFIG lấy qua biến môi trường / GitHub Secrets (base token, TABLE_ID bảng "Đăng Reel", FB page) — điền vào `.local.json` hoặc Secrets, KHÔNG hardcode.
-```
-node scripts/post-reels-api.js            # đăng tất cả dòng "Chờ đăng"
-node scripts/post-reels-api.js --dry-run  # chỉ liệt kê
-```
-→ **Khi gọi skill `dang-reel-facebook`, đây là lệnh được chạy.** Đã kiểm chứng đăng thành công (tự tải video từ Base → upload Reels → ghi "Đã đăng" + Link Reel về Base).
+> Token Facebook **KHÔNG** để trong Secrets — runner đọc từ cột `access_token` của **bảng Fanpage**.
 
-**B. `scripts/bo-cai/post-reels.js` (bản gốc, dùng lark-cli).** Dành cho bản chuyển giao học viên tự cài: cần `npm i -g @larksuite/cli` + `lark-cli auth login` + `config.local.json`. Chạy `node post-reels.js` hoặc bấm `DANG-NGAY.bat`.
+## File trong repo
+- `.github/workflows/dang-bai-facebook.yml` — workflow: cron `*/30` + `workflow_dispatch` (dry_run / post_all / record_id).
+- `scripts/post-multi-reel-api.js` — ⭐ runner chính (Reel + ảnh, nhiều Page). Lệnh workflow chạy.
+- `scripts/post-feed-api.js` — đăng bài feed/ảnh lên Page (biến thể).
+- `scripts/post-reels-api.js` — biến thể đăng Reel 1 Page qua `FB_PAGE_ID`/`FB_PAGE_TOKEN` (env).
+- `scripts/fetch-pages-to-lark.js` — nạp danh sách Page + token vào bảng Fanpage (cần `FB_USER_TOKEN`).
+- `scripts/fetch-posts-to-lark.js` — lấy danh sách bài viết Page về Base.
+- `scripts/cai-dat-github.mjs` — tự động tạo repo từ template + nạp 5 Secrets bằng token học viên.
+- `scripts/*.local.json.example` — **mẫu cấu hình**: copy thành `*.local.json` (đã bị `.gitignore` chặn) rồi tự điền khóa.
+- `scripts/*.bat` / `*.ps1` — wrapper chạy tay trên Windows (đọc khóa từ `fetch-pages.local.json`).
 
-## Quy trình ADMIN — chuẩn bị bản chuyển giao (1 lần)
-1. **Điền `scripts/bo-cai/_app.json`:** `APP_SECRET` của app Lark dùng chung (vd "ADS → LARK", App ID `cli_APP-ID-CUA-BAN`). App cần scope base + drive; học viên phải cùng workspace Lark (hoặc app cài cho tổ chức họ). ⚠️ File chứa secret → gửi qua kênh riêng tư, KHÔNG public.
-2. **Base mẫu:** có sẵn đủ field; chia sẻ link + bật quyền *Make a copy* cho học viên. (Link mẫu cũ: `https://<workspace-cua-ban>.larksuite.com/base/<BASE-TOKEN-CUA-BAN>`.)
-3. **Lấy FB token cho TỪNG học viên:** Page Access Token dài hạn, scope `pages_manage_posts`, `pages_read_engagement`, `pages_show_list`. Gửi 2 dòng: **FB PAGE ID** + **FB PAGE TOKEN**. Token ~60 ngày phải cấp lại.
-4. **Nén & gửi:** zip thư mục `bo-cai` (đã điền `_app.json`) + kèm: link Base mẫu, FB PAGE ID, FB PAGE TOKEN. Bảo học viên đọc `HUONG-DAN-HOC-VIEN.md`. KHÔNG gửi `README-ADMIN.md`.
-
-## Quy trình HỌC VIÊN — cài đặt (~10 phút)
-1. **Nhân bản Base mẫu** → copy link Base (dạng `https://....larksuite.com/base/xxxx?table=tblyyyy`).
-2. Bấm đúp **`CAI-DAT.bat`** (SmartScreen → More info → Run anyway). Wizard `setup.ps1` sẽ:
-   - Cài Node (winget) + lark-cli (`npm i -g @larksuite/cli`).
-   - Nạp app Lark (`init-app.js` đẩy secret qua stdin, tránh `\r\n` làm hỏng).
-   - `lark-cli auth login` → học viên đăng nhập Lark, Authorize.
-   - Dán **link Base** (tự tách BASE_TOKEN + TABLE_ID) + **FB PAGE ID** + **FB PAGE TOKEN** → ghi `config.local.json`.
-3. Thấy **HOAN TAT!** là xong — KHÔNG đăng ký quét nền. Việc đăng chỉ chạy khi gọi skill (`node post-reels.js`).
-
-> Chế độ on-demand: **bỏ qua bước `register-task.ps1`** (không tạo Scheduled Task 2 phút). Nếu khách vẫn muốn tự động định kỳ, chạy `register-task.ps1` là tùy chọn — nhưng mặc định của skill này là on-demand.
-
-## Dùng hằng ngày
-Trong Base: đính video vào `Ảnh/video`, viết `Nội dung` (+`Hastag`), đặt `TT Reel = Chờ đăng`. Sau đó **gọi skill** (chạy `post-reels.js`) → máy đăng và đổi `TT Reel = Đã đăng` + điền `Link Reel`. Vì không quét nền, dòng `Lịch đăng` hẹn tương lai chỉ lên khi bạn gọi skill vào/sau giờ đó (hoặc đặt `RESPECT_SCHEDULE: false` để đăng ngay mọi dòng "Chờ đăng").
+## Cấu hình (KHÔNG hardcode — đọc từ env / Secrets / *.local.json)
+Mọi script đọc khóa qua biến môi trường (GitHub Secrets khi chạy Actions, hoặc `*.local.json` khi chạy tay).
+Biến chính: `LARK_APP_ID`, `LARK_APP_SECRET`, `LARK_APP_TOKEN`, `LARK_TABLE_ID`, `PAGES_TABLE_ID`; tuỳ chọn
+`FB_USER_TOKEN` (nạp Page), `FB_PAGE_ID`/`FB_PAGE_TOKEN` (biến thể 1 Page), `LARK_DOMAIN`, `GRAPH_VERSION`, `RESPECT_SCHEDULE`.
 
 ## Lỗi thường gặp
-- **Log "OAuthException / token"** → token FB hết hạn (~60 ngày). Admin cấp token mới → học viên sửa `config.local.json` → `FB_PAGE_TOKEN`.
-- **Lỗi định dạng/độ dài** → video phải MP4 dọc 9:16, 3–90s.
-- **Để "Chờ đăng" không lên** → chưa gọi skill, hoặc `Lịch đăng` còn ở tương lai (on-demand không tự đăng đúng giờ — phải gọi lại).
-- **Đăng lại 1 bài** → đặt lại `TT Reel = Chờ đăng` rồi gọi skill.
+- **Log `OAuthException / token`** → token FB hết hạn (~60 ngày). Lấy token mới → cập nhật cột `access_token` bảng Fanpage.
+- **`Page thiếu ID/token`** → bảng Fanpage chưa điền `ID` hoặc `access_token`.
+- **Lỗi định dạng/độ dài** → Reel phải MP4 dọc 9:16, 3–90 giây.
+- **Bài không lên dù đã hẹn giờ** → chờ ≤30' (cron), hoặc Run workflow tay.
+- **Cron ngừng chạy** → GitHub tắt cron sau 60 ngày repo không đổi; sửa 1 file + commit để "đánh thức".
+- **Ghi Base lỗi quyền** → app Lark chưa được cấp quyền Chỉnh sửa vào Base.
 
-## Yêu cầu máy
-Windows 10/11, quyền cài phần mềm (Node), đã `lark-cli auth login`. Không cần máy bật liên tục (chỉ chạy khi gọi skill).
-
-## Giới hạn đã biết
-- **Chế độ on-demand:** không có quét nền/định kỳ → `Lịch đăng` hẹn giờ KHÔNG tự kích hoạt; phải gọi skill vào/sau giờ đó, hoặc dùng `RESPECT_SCHEDULE: false`. (Nếu cần auto định kỳ thật, chạy `register-task.ps1` để bật Scheduled Task — tùy chọn, không phải mặc định.)
-- Mỗi học viên: 1 Base + 1 token riêng. Không dùng chung token giữa các Page khác nhau.
-
-## File trong skill
-- `scripts/post-reels-api.js` — ⭐ runner ON-DEMAND qua Lark Open API (không cần lark-cli). **Lệnh được chạy khi gọi skill.**
-
-**Bộ chuyển giao học viên (`scripts/bo-cai/`):**
-- `CAI-DAT.bat` — học viên bấm đúp để cài.
-- `DANG-NGAY.bat` — bấm đúp để đăng các bài "Chờ đăng" (on-demand).
-- `setup.ps1` — wizard cài đặt.
-- `post-reels.js` — bộ máy đăng (engine).
-- `init-app.js` — nạp app Lark (secret qua stdin).
-- `run-reels.ps1` / `run-hidden.vbs` — wrapper chạy ẩn (chỉ dùng nếu bật Scheduled Task tùy chọn).
-- `register-task.ps1` — *(tùy chọn, KHÔNG dùng ở chế độ on-demand)* đăng ký Scheduled Task 2 phút.
-- `config.local.json` — wizard tự ghi (BASE_TOKEN/TABLE_ID/FB_*), template để trống.
-- `_app.json` — ⚠️ ADMIN điền APP_SECRET (file nhạy cảm).
-- `HUONG-DAN-HOC-VIEN.md` — gửi kèm học viên.
-- `README-ADMIN.md` — nội bộ, KHÔNG gửi học viên.
+## Bảo mật (bắt buộc)
+- Khóa chỉ nằm ở **GitHub Secrets** hoặc **`*.local.json`** (đã `.gitignore` chặn). KHÔNG commit, KHÔNG dán vào code/bài đăng.
+- **Mỗi học viên 1 bộ khóa riêng** — không dùng chung token/secret giữa các tài khoản/Page.
