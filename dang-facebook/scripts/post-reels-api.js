@@ -20,7 +20,7 @@ const CFG = {
   APP_SECRET:    process.env.LARK_APP_SECRET || '',                       // BẮT BUỘC qua env
   APP_TOKEN:     process.env.LARK_APP_TOKEN  || '', // base token
   TABLE_ID:      process.env.LARK_TABLE_ID   || '',       // bảng "Đăng Reel"
-  FB_PAGE_ID:    process.env.FB_PAGE_ID      || '',        // page "John CVTI"
+  FB_PAGE_ID:    process.env.FB_PAGE_ID      || '',        // Facebook Page ID CỦA BẠN — đặt qua env
   FB_PAGE_TOKEN: process.env.FB_PAGE_TOKEN   || '',                       // BẮT BUỘC qua env
   LARK_DOMAIN:   process.env.LARK_DOMAIN     || 'https://open.larksuite.com',
   GRAPH_VERSION: 'v21.0',
