@@ -1,13 +1,11 @@
 #!/usr/bin/env node
 /*
  * post-reels-api.js — Đăng Reel từ Lark Base lên Facebook Page bằng LARK OPEN API.
- * KHÁC bản gốc post-reels.js: KHÔNG cần lark-cli / auth login.
- * Chỉ cần Node 18+. Dùng app credentials (tenant token) để đọc/ghi Base + tải video.
+ * KHÔNG cần lark-cli / auth login — chỉ cần Node 18+. Dùng app credentials (tenant token)
+ * để đọc/ghi Base + tải video. Mọi khóa đọc từ biến môi trường (không hardcode).
  *
  * Chạy:  node post-reels-api.js            (đăng thật, tất cả dòng "Chờ đăng")
  *        node post-reels-api.js --dry-run  (chỉ liệt kê, không đăng)
- *
- * Đây là runner cho mô hình ON-DEMAND: gọi skill dang-reel-facebook → chạy file này 1 lần.
  */
 'use strict';
 const fs = require('fs'), os = require('os'), path = require('path');
